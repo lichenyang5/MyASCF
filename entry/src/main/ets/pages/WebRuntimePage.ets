@@ -1,12 +1,14 @@
 import webview from '@ohos.web.webview'
 import { AscfBridgeObject } from '../ascf/bridge/AscfBridgeObject'
+import { BridgeController } from '../ascf/controller/BridgeController'
 
 @Component
 export struct WebRuntimePage {
   private controller: webview.WebviewController = new webview.WebviewController()
-  private bridge: AscfBridgeObject = new AscfBridgeObject((responseJson: string): void => {
+  private bridgeController: BridgeController = new BridgeController((responseJson: string): void => {
     this.handleBridgeCallback(responseJson)
   })
+  private bridge: AscfBridgeObject = new AscfBridgeObject(this.bridgeController)
 
   private handleBridgeCallback(responseJson: string): void {
     const script: string = `window.__ascfResolve(${responseJson})`

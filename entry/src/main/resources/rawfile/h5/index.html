@@ -96,6 +96,14 @@
       background: #1d4ed8;
     }
 
+    .btn-secondary {
+      background: #0f766e;
+    }
+
+    .btn-secondary:active {
+      background: #115e59;
+    }
+
     .btn-disabled {
       width: 100%;
       padding: 14px 16px;
@@ -150,27 +158,31 @@
 <body>
   <div class="page">
     <div>
-      <span class="tag">Stage 1 · Step 3</span>
+      <span class="tag">Stage 1 · Step 4</span>
       <h1 class="title">ASCF Runtime Lab</h1>
-      <p class="subtitle">HarmonyOS · JavaScriptProxy · runJavaScript</p>
+      <p class="subtitle">HarmonyOS · BridgeRequest · BridgeController · BridgeResponse</p>
     </div>
 
     <div class="card">
       <p class="card-title">当前阶段</p>
       <p class="stage">
-        验证 ArkTS 通过 WebviewController.runJavaScript 主动回调 H5，完成异步往返。
+        把 H5 的 raw JSON 抽象为 BridgeRequest，由 BridgeController 校验并组装 BridgeResponse，再回调 H5。
       </p>
     </div>
 
     <div class="card">
       <p class="card-title">当前链路</p>
       <p class="chain">
-        H5 → window.ascf.send → window.ascfBridge.send → ArkTS → runJavaScript → window.__ascfResolve → Promise resolve
+        H5 → window.ascf.send → BridgeRequest → window.ascfBridge.send → AscfBridgeObject → BridgeController → BridgeResponse → runJavaScript → window.__ascfResolve → Promise resolve
       </p>
     </div>
 
     <button class="btn" id="btnStep3">
       Step 3：Promise 调用 ascfBridge.send
+    </button>
+
+    <button class="btn btn-secondary" id="btnStep4">
+      Step 4：通过 BridgeController 处理请求
     </button>
 
     <button class="btn-disabled" disabled>
@@ -187,7 +199,7 @@
     </div>
 
     <p class="footer">
-      Step 3 passed if you can see Promise resolve below.
+      Step 4 passed if response data.stage === "BridgeController".
     </p>
   </div>
 
@@ -196,7 +208,8 @@
       var logRequest = document.getElementById('logRequest');
       var logResponse = document.getElementById('logResponse');
       var logTrace = document.getElementById('logTrace');
-      var btn = document.getElementById('btnStep3');
+      var btnStep3 = document.getElementById('btnStep3');
+      var btnStep4 = document.getElementById('btnStep4');
 
       var traceLines = [];
 
@@ -249,8 +262,6 @@
 
       window.__ascfResolve = function (response) {
         var res = typeof response === 'string' ? JSON.parse(response) : response;
-        appendLog('[ArkTS] send received');
-        appendLog('[ArkTS] runJavaScript callback');
         appendLog('[H5] window.__ascfResolve called');
         logResponse.textContent = JSON.stringify(res, null, 2);
 
@@ -269,7 +280,7 @@
         }
       };
 
-      btn.addEventListener('click', function () {
+      btnStep3.addEventListener('click', function () {
         resetLogs();
         appendLog('[H5] click Step 3 button');
         appendLog('[H5] create request');
@@ -281,7 +292,26 @@
         })
           .then(function (res) {
             appendLog('[H5] Promise resolve');
-            appendLog(JSON.stringify(res, null, 2));
+          })
+          .catch(function (err) {
+            appendError('[H5] Promise reject');
+            var detail = err && err.message ? err.message : JSON.stringify(err);
+            appendLog(String(detail));
+          });
+      });
+
+      btnStep4.addEventListener('click', function () {
+        resetLogs();
+        appendLog('[H5] Step 4 clicked');
+        appendLog('[H5] create BridgeRequest');
+        appendLog('[H5] call window.ascfBridge.send');
+
+        window.ascf.send('runtime.controllerPing', {
+          from: 'h5',
+          message: 'hello BridgeController'
+        })
+          .then(function (res) {
+            appendLog('[H5] Promise resolve');
           })
           .catch(function (err) {
             appendError('[H5] Promise reject');
