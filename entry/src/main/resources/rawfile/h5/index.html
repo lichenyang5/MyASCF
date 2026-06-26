@@ -121,10 +121,6 @@
       min-height: 36px;
     }
 
-    .log-block + .log-label {
-      margin-top: 10px;
-    }
-
     .log-label {
       font-size: 12px;
       font-weight: 600;
@@ -132,6 +128,10 @@
       margin: 0 0 6px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
+    }
+
+    .log-block + .log-label {
+      margin-top: 10px;
     }
 
     .error {
@@ -150,31 +150,31 @@
 <body>
   <div class="page">
     <div>
-      <span class="tag">Stage 1 · Step 2</span>
+      <span class="tag">Stage 1 · Step 3</span>
       <h1 class="title">ASCF Runtime Lab</h1>
-      <p class="subtitle">HarmonyOS · ArkWeb · JavaScriptProxy</p>
+      <p class="subtitle">HarmonyOS · JavaScriptProxy · runJavaScript</p>
     </div>
 
     <div class="card">
       <p class="card-title">当前阶段</p>
       <p class="stage">
-        验证 H5 → JavaScriptProxy → ArkTS 单向调用，暂不接入 runJavaScript 回调。
+        验证 ArkTS 通过 WebviewController.runJavaScript 主动回调 H5，完成异步往返。
       </p>
     </div>
 
     <div class="card">
       <p class="card-title">当前链路</p>
       <p class="chain">
-        H5 Button → window.ascfBridge.send(rawReq) → JavaScriptProxy → AscfBridgeObject.send → return string
+        H5 → window.ascf.send → window.ascfBridge.send → ArkTS → runJavaScript → window.__ascfResolve → Promise resolve
       </p>
     </div>
 
-    <button class="btn" id="btnSend">
-      Step 2：调用 ascfBridge.send
+    <button class="btn" id="btnStep3">
+      Step 3：Promise 调用 ascfBridge.send
     </button>
 
     <button class="btn-disabled" disabled>
-      下一步接入 runJavaScript 回调
+      下一步接入 Dispatcher / Register
     </button>
 
     <div class="card">
@@ -182,61 +182,112 @@
       <div class="log-block" id="logRequest">--</div>
       <p class="log-label">Response</p>
       <div class="log-block" id="logResponse">--</div>
-      <p class="log-label">Stage</p>
-      <div class="log-block" id="logStage">idle</div>
+      <p class="log-label">Trace</p>
+      <div class="log-block" id="logTrace">idle</div>
     </div>
 
     <p class="footer">
-      Step 2 passed if you can see request &amp; response below.
+      Step 3 passed if you can see Promise resolve below.
     </p>
   </div>
 
   <script>
     (function () {
-      var btn = document.getElementById('btnSend');
       var logRequest = document.getElementById('logRequest');
       var logResponse = document.getElementById('logResponse');
-      var logStage = document.getElementById('logStage');
+      var logTrace = document.getElementById('logTrace');
+      var btn = document.getElementById('btnStep3');
 
-      function setStage(text, isError) {
-        logStage.textContent = text;
-        if (isError) {
-          logStage.classList.add('error');
-        } else {
-          logStage.classList.remove('error');
-        }
+      var traceLines = [];
+
+      function appendLog(line) {
+        traceLines.push(line);
+        logTrace.textContent = traceLines.join('\n');
+        logTrace.classList.remove('error');
       }
 
-      btn.addEventListener('click', function () {
-        if (!window.ascfBridge || typeof window.ascfBridge.send !== 'function') {
-          logRequest.textContent = '--';
-          logResponse.textContent = '--';
-          setStage('window.ascfBridge is not injected', true);
+      function appendError(line) {
+        appendLog(line);
+        logTrace.classList.add('error');
+      }
+
+      function resetLogs() {
+        traceLines = [];
+        logTrace.textContent = '';
+        logTrace.classList.remove('error');
+        logRequest.textContent = '--';
+        logResponse.textContent = '--';
+      }
+
+      window.ascf = {
+        pendingMap: new Map(),
+        send: function (action, params) {
+          var requestId = 'req_' + Date.now();
+          var request = {
+            requestId: requestId,
+            action: action,
+            params: params,
+            timeout: 5000
+          };
+
+          logRequest.textContent = JSON.stringify(request, null, 2);
+
+          var pendingMap = this.pendingMap;
+          return new Promise(function (resolve, reject) {
+            pendingMap.set(requestId, { resolve: resolve, reject: reject });
+
+            if (!window.ascfBridge || typeof window.ascfBridge.send !== 'function') {
+              pendingMap.delete(requestId);
+              reject(new Error('window.ascfBridge is not injected'));
+              return;
+            }
+
+            window.ascfBridge.send(JSON.stringify(request));
+          });
+        }
+      };
+
+      window.__ascfResolve = function (response) {
+        var res = typeof response === 'string' ? JSON.parse(response) : response;
+        appendLog('[ArkTS] send received');
+        appendLog('[ArkTS] runJavaScript callback');
+        appendLog('[H5] window.__ascfResolve called');
+        logResponse.textContent = JSON.stringify(res, null, 2);
+
+        var item = window.ascf.pendingMap.get(res.requestId);
+        if (!item) {
+          appendLog('[H5] pending request not found: ' + res.requestId);
           return;
         }
 
-        var request = {
-          requestId: 'req_' + Date.now(),
-          action: 'runtime.ping',
-          params: {
-            from: 'h5',
-            message: 'hello ArkTS'
-          },
-          timeout: 5000
-        };
+        window.ascf.pendingMap.delete(res.requestId);
 
-        var rawReq = JSON.stringify(request);
-        logRequest.textContent = rawReq;
-        setStage('H5 -> JavaScriptProxy -> ArkTS ...', false);
-
-        try {
-          var rawResp = window.ascfBridge.send(rawReq);
-          logResponse.textContent = rawResp || '(empty response)';
-          setStage('ArkTS responded synchronously', false);
-        } catch (e) {
-          logResponse.textContent = '--';
-          setStage('call failed: ' + (e && e.message ? e.message : e), true);
+        if (res.code === 0) {
+          item.resolve(res);
+        } else {
+          item.reject(res);
         }
+      };
+
+      btn.addEventListener('click', function () {
+        resetLogs();
+        appendLog('[H5] click Step 3 button');
+        appendLog('[H5] create request');
+        appendLog('[H5] call window.ascfBridge.send');
+
+        window.ascf.send('runtime.ping', {
+          from: 'h5',
+          message: 'hello runJavaScript'
+        })
+          .then(function (res) {
+            appendLog('[H5] Promise resolve');
+            appendLog(JSON.stringify(res, null, 2));
+          })
+          .catch(function (err) {
+            appendError('[H5] Promise reject');
+            var detail = err && err.message ? err.message : JSON.stringify(err);
+            appendLog(String(detail));
+          });
       });
     })();
   </script>

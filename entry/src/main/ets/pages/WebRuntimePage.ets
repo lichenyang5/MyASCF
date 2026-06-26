@@ -1,12 +1,22 @@
 import webview from '@ohos.web.webview'
 import { AscfBridgeObject } from '../ascf/bridge/AscfBridgeObject'
 
-const TAG: string = 'WebRuntimePage'
-
 @Component
 export struct WebRuntimePage {
   private controller: webview.WebviewController = new webview.WebviewController()
-  private bridge: AscfBridgeObject = new AscfBridgeObject()
+  private bridge: AscfBridgeObject = new AscfBridgeObject((responseJson: string): void => {
+    this.handleBridgeCallback(responseJson)
+  })
+
+  private handleBridgeCallback(responseJson: string): void {
+    const script: string = `window.__ascfResolve(${responseJson})`
+    console.info(`[ASCF][WebRuntimePage] runJavaScript: ${script}`)
+    try {
+      this.controller.runJavaScript(script)
+    } catch (e) {
+      console.error(`[ASCF][WebRuntimePage] runJavaScript error: ${(e as Error).message}`)
+    }
+  }
 
   build() {
     Column() {
@@ -24,10 +34,10 @@ export struct WebRuntimePage {
           controller: this.controller
         })
         .onPageBegin((event) => {
-          console.info(`${TAG} onPageBegin url=${event?.url ?? ''}`)
+          console.info(`[ASCF][WebRuntimePage] onPageBegin url=${event?.url ?? ''}`)
         })
         .onPageEnd((event) => {
-          console.info(`${TAG} onPageEnd url=${event?.url ?? ''}`)
+          console.info(`[ASCF][WebRuntimePage] onPageEnd url=${event?.url ?? ''}`)
         })
     }
     .width('100%')

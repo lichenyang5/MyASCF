@@ -1,55 +1,74 @@
-const TAG: string = 'AscfBridgeObject'
+interface BridgeParams {
+  from?: string
+  message?: string
+}
 
-interface AscfRequest {
+interface BridgeRequest {
   requestId?: string
   action?: string
-  params?: Record<string, Object>
+  params?: BridgeParams
   timeout?: number
 }
 
-interface AscfResponseData {
+interface BridgeResponseData {
   action?: string
   stage?: string
+  receivedParams?: BridgeParams
 }
 
-interface AscfResponse {
+interface BridgeResponse {
   requestId: string
   code: number
   message: string
-  data: AscfResponseData | Record<string, Object>
+  data: BridgeResponseData
 }
 
-export class AscfBridgeObject {
-  send(rawReq: string): string {
-    console.info(`${TAG} send rawReq=${rawReq}`)
+export type AscfCallbackToH5 = (responseJson: string) => void
 
-    let req: AscfRequest
+export class AscfBridgeObject {
+  private readonly callbackToH5: AscfCallbackToH5
+
+  constructor(callbackToH5: AscfCallbackToH5) {
+    this.callbackToH5 = callbackToH5
+  }
+
+  send(rawReq: string): string {
+    console.info(`[ASCF][Bridge] send rawReq = ${rawReq}`)
+
+    let responseJson: string
     try {
-      req = JSON.parse(rawReq) as AscfRequest
+      const req: BridgeRequest = JSON.parse(rawReq) as BridgeRequest
+      const requestId: string = req.requestId ?? ''
+      const action: string = req.action ?? ''
+      const emptyParams: BridgeParams = {}
+      const params: BridgeParams = req.params ?? emptyParams
+
+      const data: BridgeResponseData = {
+        action: action,
+        stage: 'H5 -> JavaScriptProxy -> ArkTS -> runJavaScript -> H5',
+        receivedParams: params
+      }
+      const response: BridgeResponse = {
+        requestId: requestId,
+        code: 0,
+        message: 'ArkTS callback by runJavaScript',
+        data: data
+      }
+      responseJson = JSON.stringify(response)
     } catch (e) {
-      console.error(`${TAG} parse error: ${(e as Error).message}`)
-      const errResp: AscfResponse = {
+      console.error(`[ASCF][Bridge] parse error: ${(e as Error).message}`)
+      const errData: BridgeResponseData = {}
+      const errResp: BridgeResponse = {
         requestId: '',
         code: 400,
         message: 'Invalid JSON',
-        data: {}
+        data: errData
       }
-      return JSON.stringify(errResp)
+      responseJson = JSON.stringify(errResp)
     }
 
-    const requestId: string = req.requestId ?? ''
-    const action: string = req.action ?? ''
-    console.info(`${TAG} parsed requestId=${requestId} action=${action}`)
-
-    const resp: AscfResponse = {
-      requestId: requestId,
-      code: 0,
-      message: 'ArkTS received request by JavaScriptProxy',
-      data: {
-        action: action,
-        stage: 'H5 -> JavaScriptProxy -> ArkTS'
-      }
-    }
-    return JSON.stringify(resp)
+    console.info(`[ASCF][Bridge] callbackToH5 response = ${responseJson}`)
+    this.callbackToH5(responseJson)
+    return ''
   }
 }
