@@ -39,6 +39,16 @@
       margin: 0;
     }
 
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      color: #2563eb;
+      background: #dbeafe;
+      border-radius: 999px;
+      padding: 2px 10px;
+      margin-bottom: 8px;
+    }
+
     .card {
       background: #ffffff;
       border-radius: 16px;
@@ -70,6 +80,22 @@
       word-break: break-all;
     }
 
+    .btn {
+      width: 100%;
+      padding: 14px 16px;
+      border: none;
+      border-radius: 12px;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn:active {
+      background: #1d4ed8;
+    }
+
     .btn-disabled {
       width: 100%;
       padding: 14px 16px;
@@ -82,53 +108,137 @@
       cursor: not-allowed;
     }
 
+    .log-block {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      color: #0f172a;
+      background: #f1f5f9;
+      border-radius: 10px;
+      padding: 10px 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 36px;
+    }
+
+    .log-block + .log-label {
+      margin-top: 10px;
+    }
+
+    .log-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      margin: 0 0 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .error {
+      color: #b91c1c;
+      background: #fef2f2;
+    }
+
     .footer {
       margin-top: 8px;
       text-align: center;
       font-size: 12px;
       color: #9ca3af;
     }
-
-    .tag {
-      display: inline-block;
-      font-size: 11px;
-      color: #2563eb;
-      background: #dbeafe;
-      border-radius: 999px;
-      padding: 2px 10px;
-      margin-bottom: 8px;
-    }
   </style>
 </head>
 <body>
   <div class="page">
     <div>
-      <span class="tag">Stage 1 · Step 1</span>
+      <span class="tag">Stage 1 · Step 2</span>
       <h1 class="title">ASCF Runtime Lab</h1>
-      <p class="subtitle">HarmonyOS · ArkWeb · Local H5</p>
+      <p class="subtitle">HarmonyOS · ArkWeb · JavaScriptProxy</p>
     </div>
 
     <div class="card">
       <p class="card-title">当前阶段</p>
       <p class="stage">
-        只验证 ArkWeb 能加载 H5 页面，暂不接入 JavaScriptProxy。
+        验证 H5 → JavaScriptProxy → ArkTS 单向调用，暂不接入 runJavaScript 回调。
       </p>
     </div>
 
     <div class="card">
       <p class="card-title">当前链路</p>
       <p class="chain">
-        ArkTS Web 组件 → ArkWeb → rawfile/h5/index.html → H5 页面渲染
+        H5 Button → window.ascfBridge.send(rawReq) → JavaScriptProxy → AscfBridgeObject.send → return string
       </p>
     </div>
 
-    <button class="btn-disabled" disabled>
-      下一步接入 JavaScriptProxy
+    <button class="btn" id="btnSend">
+      Step 2：调用 ascfBridge.send
     </button>
 
+    <button class="btn-disabled" disabled>
+      下一步接入 runJavaScript 回调
+    </button>
+
+    <div class="card">
+      <p class="log-label">Request</p>
+      <div class="log-block" id="logRequest">--</div>
+      <p class="log-label">Response</p>
+      <div class="log-block" id="logResponse">--</div>
+      <p class="log-label">Stage</p>
+      <div class="log-block" id="logStage">idle</div>
+    </div>
+
     <p class="footer">
-      Step 1 passed if you can see this page in ArkWeb.
+      Step 2 passed if you can see request &amp; response below.
     </p>
   </div>
+
+  <script>
+    (function () {
+      var btn = document.getElementById('btnSend');
+      var logRequest = document.getElementById('logRequest');
+      var logResponse = document.getElementById('logResponse');
+      var logStage = document.getElementById('logStage');
+
+      function setStage(text, isError) {
+        logStage.textContent = text;
+        if (isError) {
+          logStage.classList.add('error');
+        } else {
+          logStage.classList.remove('error');
+        }
+      }
+
+      btn.addEventListener('click', function () {
+        if (!window.ascfBridge || typeof window.ascfBridge.send !== 'function') {
+          logRequest.textContent = '--';
+          logResponse.textContent = '--';
+          setStage('window.ascfBridge is not injected', true);
+          return;
+        }
+
+        var request = {
+          requestId: 'req_' + Date.now(),
+          action: 'runtime.ping',
+          params: {
+            from: 'h5',
+            message: 'hello ArkTS'
+          },
+          timeout: 5000
+        };
+
+        var rawReq = JSON.stringify(request);
+        logRequest.textContent = rawReq;
+        setStage('H5 -> JavaScriptProxy -> ArkTS ...', false);
+
+        try {
+          var rawResp = window.ascfBridge.send(rawReq);
+          logResponse.textContent = rawResp || '(empty response)';
+          setStage('ArkTS responded synchronously', false);
+        } catch (e) {
+          logResponse.textContent = '--';
+          setStage('call failed: ' + (e && e.message ? e.message : e), true);
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

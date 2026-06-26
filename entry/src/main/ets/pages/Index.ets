@@ -4,6 +4,8 @@ import { WebRuntimePage } from './WebRuntimePage'
 @Component
 struct Index {
   build() {
-    WebRuntimePage()
+    Column(){
+      WebRuntimePage()
+    }
   }
 }
