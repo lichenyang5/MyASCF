@@ -23,7 +23,7 @@
       padding: 24px 20px 32px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
 
     .title {
@@ -80,6 +80,29 @@
       word-break: break-all;
     }
 
+    .btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .sub-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin: 8px 0 0;
+      padding-top: 8px;
+      border-top: 1px dashed #e5e7eb;
+    }
+
+    .sub-label:first-child {
+      border-top: none;
+      padding-top: 0;
+      margin-top: 0;
+    }
+
     .btn {
       width: 100%;
       padding: 14px 16px;
@@ -102,6 +125,30 @@
 
     .btn-secondary:active {
       background: #115e59;
+    }
+
+    .btn-step5 {
+      background: #7c3aed;
+    }
+
+    .btn-step5:active {
+      background: #6d28d9;
+    }
+
+    .btn-step6 {
+      background: #d97706;
+    }
+
+    .btn-step6:active {
+      background: #b45309;
+    }
+
+    .btn-danger {
+      background: #dc2626;
+    }
+
+    .btn-danger:active {
+      background: #b91c1c;
     }
 
     .btn-disabled {
@@ -158,35 +205,46 @@
 <body>
   <div class="page">
     <div>
-      <span class="tag">Stage 1 · Step 4</span>
+      <span class="tag">Stage 1 · Step 6</span>
       <h1 class="title">ASCF Runtime Lab</h1>
-      <p class="subtitle">HarmonyOS · BridgeRequest · BridgeController · BridgeResponse</p>
+      <p class="subtitle">Biz · Imp 分层</p>
     </div>
 
     <div class="card">
       <p class="card-title">当前阶段</p>
       <p class="stage">
-        把 H5 的 raw JSON 抽象为 BridgeRequest，由 BridgeController 校验并组装 BridgeResponse，再回调 H5。
+        把 handler 拆成 Biz / Imp 两层。Register 只做绑定，Biz 写业务语义，Imp 写能力实现（当前仍是 mock）。
       </p>
     </div>
 
     <div class="card">
       <p class="card-title">当前链路</p>
       <p class="chain">
-        H5 → window.ascf.send → BridgeRequest → window.ascfBridge.send → AscfBridgeObject → BridgeController → BridgeResponse → runJavaScript → window.__ascfResolve → Promise resolve
+        H5 → BridgeRequest → AscfBridgeObject → BridgeController → BridgeDispatcher → HandlerRegister → Biz → Imp → BridgeResponse → runJavaScript → Promise resolve
       </p>
     </div>
 
-    <button class="btn" id="btnStep3">
-      Step 3：Promise 调用 ascfBridge.send
-    </button>
+    <div class="card">
+      <p class="card-title">能力按钮</p>
+      <div class="btn-stack">
+        <p class="sub-label">Step 3-4：基础链路</p>
+        <button class="btn" id="btnStep3">Step 3：Promise 调用 ascfBridge.send</button>
+        <button class="btn btn-secondary" id="btnStep4">Step 4：通过 BridgeController 处理请求</button>
 
-    <button class="btn btn-secondary" id="btnStep4">
-      Step 4：通过 BridgeController 处理请求
-    </button>
+        <p class="sub-label">Step 5：Dispatcher / Register</p>
+        <button class="btn btn-step5" id="btnStep5Ping">Step 5：dispatch runtime.ping</button>
+        <button class="btn btn-step5" id="btnStep5Echo">Step 5：dispatch runtime.echo</button>
+        <button class="btn btn-danger" id="btnStep5Unknown">Step 5：dispatch unknown.action</button>
+
+        <p class="sub-label">Step 6：Biz / Imp 分层</p>
+        <button class="btn btn-step6" id="btnStep6Ping">Step 6：RuntimeBiz.ping</button>
+        <button class="btn btn-step6" id="btnStep6Echo">Step 6：RuntimeBiz.echo</button>
+        <button class="btn btn-step6" id="btnStep6Device">Step 6：DeviceBiz.getInfo</button>
+      </div>
+    </div>
 
     <button class="btn-disabled" disabled>
-      下一步接入 Dispatcher / Register
+      下一步接入 OpenHarmony API
     </button>
 
     <div class="card">
@@ -199,7 +257,7 @@
     </div>
 
     <p class="footer">
-      Step 4 passed if response data.stage === "BridgeController".
+      Step 6 passed if data.stage contains "RuntimeBiz -> RuntimeImp" or "DeviceBiz -> DeviceImp".
     </p>
   </div>
 
@@ -208,8 +266,6 @@
       var logRequest = document.getElementById('logRequest');
       var logResponse = document.getElementById('logResponse');
       var logTrace = document.getElementById('logTrace');
-      var btnStep3 = document.getElementById('btnStep3');
-      var btnStep4 = document.getElementById('btnStep4');
 
       var traceLines = [];
 
@@ -280,44 +336,95 @@
         }
       };
 
-      btnStep3.addEventListener('click', function () {
-        resetLogs();
-        appendLog('[H5] click Step 3 button');
-        appendLog('[H5] create request');
-        appendLog('[H5] call window.ascfBridge.send');
+      function bindStep3(button) {
+        button.addEventListener('click', function () {
+          resetLogs();
+          appendLog('[H5] click Step 3 button');
+          appendLog('[H5] create request');
+          appendLog('[H5] call window.ascfBridge.send');
 
-        window.ascf.send('runtime.ping', {
-          from: 'h5',
-          message: 'hello runJavaScript'
-        })
-          .then(function (res) {
-            appendLog('[H5] Promise resolve');
+          window.ascf.send('runtime.ping', {
+            from: 'h5',
+            message: 'hello runJavaScript'
           })
-          .catch(function (err) {
-            appendError('[H5] Promise reject');
-            var detail = err && err.message ? err.message : JSON.stringify(err);
-            appendLog(String(detail));
-          });
+            .then(function () { appendLog('[H5] Promise resolve'); })
+            .catch(function () { appendError('[H5] Promise reject'); });
+        });
+      }
+
+      function bindStep4(button) {
+        button.addEventListener('click', function () {
+          resetLogs();
+          appendLog('[H5] Step 4 clicked');
+          appendLog('[H5] create BridgeRequest');
+          appendLog('[H5] call window.ascfBridge.send');
+
+          window.ascf.send('runtime.controllerPing', {
+            from: 'h5',
+            message: 'hello BridgeController'
+          })
+            .then(function () { appendLog('[H5] Promise resolve'); })
+            .catch(function () { appendError('[H5] Promise reject'); });
+        });
+      }
+
+      function bindStep5(button, action, params) {
+        button.addEventListener('click', function () {
+          resetLogs();
+          appendLog('[H5] Step 5 clicked');
+          appendLog('[H5] create BridgeRequest');
+          appendLog('[H5] call window.ascfBridge.send');
+
+          window.ascf.send(action, params)
+            .then(function () { appendLog('[H5] Promise resolve'); })
+            .catch(function () { appendError('[H5] Promise reject'); });
+        });
+      }
+
+      function bindStep6(button, action, params) {
+        button.addEventListener('click', function () {
+          resetLogs();
+          appendLog('[H5] Step 6 clicked');
+          appendLog('[H5] call action = ' + action);
+
+          window.ascf.send(action, params)
+            .then(function () { appendLog('[H5] Promise resolve'); })
+            .catch(function () { appendError('[H5] Promise reject'); });
+        });
+      }
+
+      bindStep3(document.getElementById('btnStep3'));
+      bindStep4(document.getElementById('btnStep4'));
+      bindStep5(document.getElementById('btnStep5Ping'), 'runtime.ping', {
+        from: 'h5',
+        message: 'hello dispatcher'
       });
-
-      btnStep4.addEventListener('click', function () {
-        resetLogs();
-        appendLog('[H5] Step 4 clicked');
-        appendLog('[H5] create BridgeRequest');
-        appendLog('[H5] call window.ascfBridge.send');
-
-        window.ascf.send('runtime.controllerPing', {
-          from: 'h5',
-          message: 'hello BridgeController'
-        })
-          .then(function (res) {
-            appendLog('[H5] Promise resolve');
-          })
-          .catch(function (err) {
-            appendError('[H5] Promise reject');
-            var detail = err && err.message ? err.message : JSON.stringify(err);
-            appendLog(String(detail));
-          });
+      bindStep5(document.getElementById('btnStep5Echo'), 'runtime.echo', {
+        from: 'h5',
+        payload: {
+          name: 'ASCF Runtime Lab',
+          step: 5
+        }
+      });
+      bindStep5(document.getElementById('btnStep5Unknown'), 'unknown.action', {
+        from: 'h5',
+        message: 'this action should return 404'
+      });
+      bindStep6(document.getElementById('btnStep6Ping'), 'runtime.ping', {
+        from: 'h5',
+        step: 6,
+        message: 'hello Biz Imp'
+      });
+      bindStep6(document.getElementById('btnStep6Echo'), 'runtime.echo', {
+        from: 'h5',
+        step: 6,
+        payload: {
+          keyword: 'Controller -> Dispatcher -> Register -> Biz -> Imp'
+        }
+      });
+      bindStep6(document.getElementById('btnStep6Device'), 'device.getInfo', {
+        from: 'h5',
+        step: 6
       });
     })();
   </script>
