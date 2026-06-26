@@ -143,6 +143,22 @@
       background: #b45309;
     }
 
+    .btn-step7 {
+      background: #059669;
+    }
+
+    .btn-step7:active {
+      background: #047857;
+    }
+
+    .btn-step8 {
+      background: #1f2937;
+    }
+
+    .btn-step8:active {
+      background: #111827;
+    }
+
     .btn-danger {
       background: #dc2626;
     }
@@ -205,22 +221,22 @@
 <body>
   <div class="page">
     <div>
-      <span class="tag">Stage 1 · Step 6</span>
+      <span class="tag">Stage 1 · Step 8</span>
       <h1 class="title">ASCF Runtime Lab</h1>
-      <p class="subtitle">Biz · Imp 分层</p>
+      <p class="subtitle">NAPI · ArkTS → C++ Native</p>
     </div>
 
     <div class="card">
       <p class="card-title">当前阶段</p>
       <p class="stage">
-        把 handler 拆成 Biz / Imp 两层。Register 只做绑定，Biz 写业务语义，Imp 写能力实现（当前仍是 mock）。
+        Imp 层第二条真实链路：NativeImp 通过 Node-API 调用 C++ 模块。注意 NAPI 是 ArkTS/JS ↔ C++ 的桥，不是 H5 ↔ 系统能力的桥。
       </p>
     </div>
 
     <div class="card">
       <p class="card-title">当前链路</p>
       <p class="chain">
-        H5 → BridgeRequest → AscfBridgeObject → BridgeController → BridgeDispatcher → HandlerRegister → Biz → Imp → BridgeResponse → runJavaScript → Promise resolve
+        H5 → BridgeRequest → Controller → Dispatcher → Register → NativeBiz → NativeImp → NAPI → C++ → BridgeResponse → runJavaScript → Promise resolve
       </p>
     </div>
 
@@ -236,15 +252,23 @@
         <button class="btn btn-step5" id="btnStep5Echo">Step 5：dispatch runtime.echo</button>
         <button class="btn btn-danger" id="btnStep5Unknown">Step 5：dispatch unknown.action</button>
 
-        <p class="sub-label">Step 6：Biz / Imp 分层</p>
+        <p class="sub-label">Step 6：Biz / Imp 分层（mock）</p>
         <button class="btn btn-step6" id="btnStep6Ping">Step 6：RuntimeBiz.ping</button>
         <button class="btn btn-step6" id="btnStep6Echo">Step 6：RuntimeBiz.echo</button>
         <button class="btn btn-step6" id="btnStep6Device">Step 6：DeviceBiz.getInfo</button>
+
+        <p class="sub-label">Step 7：OpenHarmony 系统 API（pasteboard）</p>
+        <button class="btn btn-step7" id="btnStep7Write">Step 7：clipboard.writeText</button>
+        <button class="btn btn-step7" id="btnStep7Read">Step 7：clipboard.readText</button>
+
+        <p class="sub-label">Step 8：NAPI / C++ Native</p>
+        <button class="btn btn-step8" id="btnStep8Add">Step 8：native.addByNapi</button>
+        <button class="btn btn-step8" id="btnStep8Ver">Step 8：native.getNativeVersion</button>
       </div>
     </div>
 
     <button class="btn-disabled" disabled>
-      下一步接入 OpenHarmony API
+      Stage 1 完成 · 后续阶段：白名单 / NetMonitor / WebSocket
     </button>
 
     <div class="card">
@@ -257,7 +281,7 @@
     </div>
 
     <p class="footer">
-      Step 6 passed if data.stage contains "RuntimeBiz -> RuntimeImp" or "DeviceBiz -> DeviceImp".
+      Step 8 passed if native.addByNapi returns 12 and native.getNativeVersion returns native-cpp-v1.0.0.
     </p>
   </div>
 
@@ -393,6 +417,30 @@
         });
       }
 
+      function bindStep7(button, label, action, params) {
+        button.addEventListener('click', function () {
+          resetLogs();
+          appendLog('[H5] Step 7 ' + label + ' clicked');
+          appendLog('[H5] call action = ' + action);
+
+          window.ascf.send(action, params)
+            .then(function () { appendLog('[H5] Promise resolve'); })
+            .catch(function () { appendError('[H5] Promise reject'); });
+        });
+      }
+
+      function bindStep8(button, label, action, params) {
+        button.addEventListener('click', function () {
+          resetLogs();
+          appendLog('[H5] Step 8 ' + label + ' clicked');
+          appendLog('[H5] call action = ' + action);
+
+          window.ascf.send(action, params)
+            .then(function () { appendLog('[H5] Promise resolve'); })
+            .catch(function () { appendError('[H5] Promise reject'); });
+        });
+      }
+
       bindStep3(document.getElementById('btnStep3'));
       bindStep4(document.getElementById('btnStep4'));
       bindStep5(document.getElementById('btnStep5Ping'), 'runtime.ping', {
@@ -425,6 +473,25 @@
       bindStep6(document.getElementById('btnStep6Device'), 'device.getInfo', {
         from: 'h5',
         step: 6
+      });
+      bindStep7(document.getElementById('btnStep7Write'), 'clipboard.writeText', 'clipboard.writeText', {
+        text: 'Hello ASCF Runtime Lab ' + new Date().toLocaleString(),
+        from: 'h5',
+        step: 7
+      });
+      bindStep7(document.getElementById('btnStep7Read'), 'clipboard.readText', 'clipboard.readText', {
+        from: 'h5',
+        step: 7
+      });
+      bindStep8(document.getElementById('btnStep8Add'), 'native.addByNapi', 'native.addByNapi', {
+        a: 7,
+        b: 5,
+        from: 'h5',
+        step: 8
+      });
+      bindStep8(document.getElementById('btnStep8Ver'), 'native.getNativeVersion', 'native.getNativeVersion', {
+        from: 'h5',
+        step: 8
       });
     })();
   </script>

@@ -17,14 +17,14 @@ export class BridgeController {
     this.dispatcher = dispatcher
   }
 
-  handle(rawReq: string): void {
+  async handle(rawReq: string): Promise<void> {
     console.info(`[ASCF][Controller] rawReq = ${rawReq}`)
 
     let response: BridgeResponse
     try {
       const req: BridgeRequest = parseBridgeRequest(rawReq)
       console.info(`[ASCF][Controller] parsed request action = ${req.action}`)
-      response = this.dispatcher.dispatch(req)
+      response = await this.dispatcher.dispatch(req)
     } catch (e) {
       const errMsg: string = (e as Error).message
       console.error(`[ASCF][Controller] parse error: ${errMsg}`)

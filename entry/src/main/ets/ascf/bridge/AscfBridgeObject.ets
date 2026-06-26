@@ -9,6 +9,8 @@ export class AscfBridgeObject {
 
   send(rawReq: string): void {
     console.info(`[ASCF][Bridge] JavaScriptProxy send rawReq = ${rawReq}`)
-    this.controller.handle(rawReq)
+    this.controller.handle(rawReq).catch((e: Error) => {
+      console.error(`[ASCF][Bridge] unhandled handle error: ${e.message}`)
+    })
   }
 }

@@ -15,7 +15,7 @@ export class BridgeDispatcher {
     this.register = register
   }
 
-  dispatch(request: BridgeRequest): BridgeResponse {
+  async dispatch(request: BridgeRequest): Promise<BridgeResponse> {
     console.info(`[ASCF][Dispatcher] dispatch action = ${request.action}`)
 
     const handler: BridgeHandler | undefined = this.register.getHandler(request.action)
@@ -32,11 +32,13 @@ export class BridgeDispatcher {
     }
 
     try {
-      return handler(request)
+      return await handler(request)
     } catch (e) {
-      console.error(`[ASCF][Dispatcher] handler error: ${(e as Error).message}`)
+      const errMsg: string = (e as Error).message
+      console.error(`[ASCF][Dispatcher] handler error: ${errMsg}`)
       const data: Record<string, Object> = JSON.parse('{}') as Record<string, Object>
       data['action'] = request.action
+      data['reason'] = errMsg
       return errorResponse(
         request.requestId,
         CODE_NATIVE_ERROR,
