@@ -4,6 +4,7 @@ export class NativeImp {
   addByNapi(a: number, b: number): Record<string, Object> {
     console.info('[ASCF][NativeImp] addByNapi start')
     const result: number = napiAdd(a, b)
+
     console.info(`[ASCF][NativeImp] addByNapi result = ${result}`)
 
     const data: Record<string, Object> = JSON.parse('{}') as Record<string, Object>
